@@ -1,0 +1,15 @@
+# Tus datos nunca van al repositorio (es público)
+*.xlsx
+*.xls
+*.xlsm
+*.csv
+*.ods
+
+# Capturas y dependencias de las pruebas locales
+tests/capturas/
+node_modules/
+
+# Sistema
+.DS_Store
+Thumbs.db
+desktop.ini

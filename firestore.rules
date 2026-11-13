@@ -1,0 +1,18 @@
+// Reglas de Firestore para Finanzas personales.
+// Cópialas en la consola de Firebase: Firestore Database > Rules > Publicar.
+// Reemplaza TU_CORREO@gmail.com por el correo de Google con el que entras.
+// Este archivo es solo una copia de referencia: lo que vale es lo publicado en la consola.
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function esMio() {
+      return request.auth != null
+        && request.auth.token.email == "TU_CORREO@gmail.com"
+        && request.auth.token.email_verified == true;
+    }
+    // Todo lo del usuario vive bajo usuarios/{uid}: gastos, ingresos, periodos, listas y ajustes.
+    match /usuarios/{uid}/{document=**} {
+      allow read, write: if esMio() && request.auth.uid == uid;
+    }
+  }
+}

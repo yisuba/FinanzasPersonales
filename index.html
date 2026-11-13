@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="es" data-tema="claro">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Finanzas personales</title>
+  <script>
+    // Aplica el tema guardado en este dispositivo antes de pintar la página (evita parpadeo)
+    try { document.documentElement.dataset.tema = localStorage.getItem("finanzas-tema") === "oscuro" ? "oscuro" : "claro"; }
+    catch (e) { document.documentElement.dataset.tema = "claro"; }
+  </script>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="cabecera">
+    <h1 id="titulo-app" title="Ir a General">Finanzas personales</h1>
+    <span id="usuario" class="usuario"></span>
+  </header>
+
+  <section id="pantalla-cargando" class="centrado"><p>Cargando…</p></section>
+
+  <section id="pantalla-sin-config" class="centrado" hidden>
+    <h2>Falta configurar Firebase</h2>
+    <p>Edita <code>firebase-config.js</code> con los valores de tu proyecto. Los pasos están en <code>GUIA-CONFIGURACION.md</code>.</p>
+  </section>
+
+  <section id="pantalla-login" class="centrado" hidden>
+    <p>Inicia sesión para ver tus finanzas.</p>
+    <button id="btn-login" type="button" class="primario">Entrar con Google</button>
+  </section>
+
+  <div id="pantalla-app" hidden>
+    <!-- Pestañas como las hojas de la planilla -->
+    <nav class="pestanas" aria-label="Hojas">
+      <button type="button" class="pestana" data-vista="general" style="--hoja: var(--verde)">General</button>
+      <button type="button" class="pestana" data-vista="gastos" style="--hoja: var(--rojo)">Gastos</button>
+      <button type="button" class="pestana" data-vista="ingresos" style="--hoja: var(--azul)">Ingresos</button>
+      <button type="button" class="pestana" data-vista="resumen" style="--hoja: var(--morado)">Resumen</button>
+      <button type="button" class="pestana" data-vista="config" style="--hoja: var(--cafe)">Configuración</button>
+    </nav>
+
+    <main>
+      <!-- GENERAL -->
+      <section id="v-general" class="vista" hidden>
+        <h2 class="titulo-hoja">Tablero general</h2>
+        <p class="nota">Elige el período: todo el resumen se recalcula para ese período.</p>
+        <div class="espacio"></div>
+
+        <div id="general-vacio" class="vacio" hidden>
+          <p>Aún no hay datos. Puedes importar tu planilla de Excel o crear un período y empezar a registrar gastos.</p>
+          <div class="acciones">
+            <button id="btn-vacio-importar" type="button" class="primario">Importar desde Excel</button>
+            <button id="btn-vacio-periodo" type="button">Crear un período</button>
+          </div>
+        </div>
+
+        <div class="fila-control">
+          <label for="sel-periodo-general">Período</label>
+          <select id="sel-periodo-general" class="selector-periodo"></select>
+        </div>
+
+        <div class="kpis">
+          <div class="kpi"><span class="kpi-etq">Ingresos</span><span id="kpi-ingresos" class="kpi-valor txt-verde"></span></div>
+          <div class="kpi"><span class="kpi-etq">Gastos</span><span id="kpi-gastos" class="kpi-valor txt-rojo"></span></div>
+          <div class="kpi"><span class="kpi-etq">Balance</span><span id="kpi-balance" class="kpi-valor txt-azul"></span></div>
+          <div class="kpi"><span class="kpi-etq">Tasa de ahorro</span><span id="kpi-tasa" class="kpi-valor txt-verde"></span></div>
+        </div>
+
+        <div id="general-avisos"></div>
+
+        <div class="general-tablas">
+          <div class="bloque">
+            <h3 class="subtitulo txt-verde">Gastos por categoría</h3>
+            <div class="tabla-scroll">
+              <table class="tabla" style="--hoja: var(--verde)">
+                <thead><tr><th>Categoría</th><th class="num">Monto</th><th class="num">% del gasto</th></tr></thead>
+                <tbody id="tb-general"></tbody>
+                <tfoot id="tf-general"></tfoot>
+              </table>
+            </div>
+          </div>
+          <div class="bloque bloque-control">
+            <h3 class="subtitulo txt-verde">Control</h3>
+            <table class="tabla" style="--hoja: var(--verde)">
+              <thead><tr><th>Control</th><th class="num">Valor</th></tr></thead>
+              <tbody>
+                <tr><td>Gastos sin categoría</td><td id="ctl-sincat" class="num txt-rojo"></td></tr>
+                <tr><td>Total menos tabla</td><td id="ctl-diferencia" class="num"></td></tr>
+                <tr><td>Estado</td><td id="ctl-estado" class="num"></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- GASTOS -->
+      <section id="v-gastos" class="vista" hidden>
+        <h2 class="titulo-hoja">Registro de gastos</h2>
+        <p class="nota">Un gasto por fila. Toca una celda para editarla; la última fila sirve para agregar. El período se calcula solo.</p>
+        <div class="espacio"></div>
+        <div class="fila-control">
+          <label for="sel-filtro-gastos">Mostrar</label>
+          <select id="sel-filtro-gastos" class="selector-periodo"></select>
+          <span id="res-gastos" class="resumen-filtro"></span>
+        </div>
+        <div class="tabla-scroll">
+          <table class="tabla editable" style="--hoja: var(--rojo)">
+            <thead><tr>
+              <th class="c-fecha">Fecha</th><th class="c-lista">Categoría</th><th class="c-texto">Descripción</th>
+              <th class="c-monto num">Monto</th><th class="c-lista">Forma de pago</th><th class="c-texto">Comentario</th>
+              <th class="c-periodo">Período</th><th class="c-acc"><span class="oculto-visual">Acciones</span></th>
+            </tr></thead>
+            <tbody id="tb-gastos"></tbody>
+            <tfoot id="tf-gastos"></tfoot>
+          </table>
+        </div>
+      </section>
+
+      <!-- INGRESOS -->
+      <section id="v-ingresos" class="vista" hidden>
+        <h2 class="titulo-hoja">Registro de ingresos</h2>
+        <p class="nota">Un ingreso por fila. Toca una celda para editarla; la última fila sirve para agregar.</p>
+        <div class="espacio"></div>
+        <div class="fila-control">
+          <label for="sel-filtro-ingresos">Mostrar</label>
+          <select id="sel-filtro-ingresos" class="selector-periodo"></select>
+          <span id="res-ingresos" class="resumen-filtro"></span>
+        </div>
+        <div class="tabla-scroll">
+          <table class="tabla editable" style="--hoja: var(--azul)">
+            <thead><tr>
+              <th class="c-fecha">Fecha</th><th class="c-lista">Fuente</th><th class="c-texto">Descripción</th>
+              <th class="c-monto num">Monto</th><th class="c-texto">Comentario</th>
+              <th class="c-periodo">Período</th><th class="c-acc"><span class="oculto-visual">Acciones</span></th>
+            </tr></thead>
+            <tbody id="tb-ingresos"></tbody>
+            <tfoot id="tf-ingresos"></tfoot>
+          </table>
+        </div>
+      </section>
+
+      <!-- RESUMEN -->
+      <section id="v-resumen" class="vista" hidden>
+        <h2 class="titulo-hoja">Resumen</h2>
+        <p class="nota">Arriba, totales por período. Abajo, el porcentaje del gasto de cada período dedicado a cada categoría.</p>
+        <div class="espacio"></div>
+        <h3 class="subtitulo txt-verde">Mensual</h3>
+        <div class="tabla-scroll">
+          <table class="tabla" style="--hoja: var(--verde)">
+            <thead><tr><th>Período</th><th class="num">Ingresos</th><th class="num">Gastos</th><th class="num">Balance</th><th class="num">Tasa de ahorro</th></tr></thead>
+            <tbody id="tb-mensual"></tbody>
+          </table>
+        </div>
+        <h3 class="subtitulo txt-morado">Año: % del gasto por categoría</h3>
+        <div class="tabla-scroll">
+          <table class="tabla tabla-anual" style="--hoja: var(--morado)">
+            <thead id="th-anual"></thead>
+            <tbody id="tb-anual"></tbody>
+            <tfoot id="tf-anual"></tfoot>
+          </table>
+        </div>
+      </section>
+
+      <!-- CONFIGURACIÓN -->
+      <section id="v-config" class="vista" hidden>
+        <h2 class="titulo-hoja">Configuración</h2>
+        <p class="nota">Períodos, listas de los desplegables, importación, respaldo y papelera.</p>
+        <div class="espacio"></div>
+
+        <h3 class="subtitulo txt-cafe">Períodos</h3>
+        <p class="nota">Cada período es un intervalo de fechas. Cerrar un período lo saca de la vista de Gastos e Ingresos, sin borrar nada: sigue en General y Resumen.</p>
+        <div class="tabla-scroll">
+          <table class="tabla editable" style="--hoja: var(--cafe)">
+            <thead><tr><th class="c-texto">Nombre</th><th class="c-fecha">Desde</th><th class="c-fecha">Hasta</th><th>Estado</th><th class="c-acc2"><span class="oculto-visual">Acciones</span></th></tr></thead>
+            <tbody id="tb-periodos"></tbody>
+          </table>
+        </div>
+        <p id="aviso-periodos" class="aviso-linea" hidden></p>
+        <button id="btn-nuevo-periodo" type="button">+ Nuevo período</button>
+
+        <div class="listas">
+          <div class="bloque">
+            <h3 class="subtitulo txt-cafe">Categorías de gasto</h3>
+            <ul id="lista-categoria" class="lista-edit"></ul>
+            <form class="form-lista" data-tipo="categoria"><input placeholder="Nueva categoría" maxlength="40" required><button type="submit">Agregar</button></form>
+          </div>
+          <div class="bloque">
+            <h3 class="subtitulo txt-cafe">Fuentes de ingreso</h3>
+            <ul id="lista-fuente" class="lista-edit"></ul>
+            <form class="form-lista" data-tipo="fuente"><input placeholder="Nueva fuente" maxlength="40" required><button type="submit">Agregar</button></form>
+          </div>
+          <div class="bloque">
+            <h3 class="subtitulo txt-cafe">Formas de pago</h3>
+            <ul id="lista-pago" class="lista-edit"></ul>
+            <form class="form-lista" data-tipo="pago"><input placeholder="Nueva forma de pago" maxlength="40" required><button type="submit">Agregar</button></form>
+          </div>
+        </div>
+
+        <h3 class="subtitulo txt-cafe">Datos</h3>
+        <div class="acciones">
+          <button id="btn-importar" type="button">Importar desde Excel</button>
+          <button id="btn-exportar" type="button">Descargar respaldo (.xlsx)</button>
+          <input id="archivo-excel" type="file" accept=".xlsx,.xls" hidden>
+        </div>
+        <p class="nota">El archivo se lee en tu navegador y sus datos van directo a tu cuenta. Nunca se sube al repositorio.</p>
+
+        <h3 class="subtitulo txt-cafe">Papelera</h3>
+        <p class="nota">Lo eliminado queda aquí y se puede restaurar. No hay borrado definitivo.</p>
+        <div id="papelera"></div>
+
+        <h3 class="subtitulo txt-cafe">Apariencia y sesión</h3>
+        <div class="fila-config">
+          <span id="etq-tema">Modo oscuro</span>
+          <button id="sw-tema" class="switch" type="button" role="switch" aria-checked="false" aria-labelledby="etq-tema"><span class="switch-bola"></span></button>
+        </div>
+        <button id="btn-salir" type="button" class="secundario">Cerrar sesión</button>
+      </section>
+    </main>
+  </div>
+
+  <!-- Confirmación -->
+  <dialog id="dlg-confirmar">
+    <p id="confirmar-texto"></p>
+    <div class="dlg-acciones">
+      <button id="confirmar-cancelar" type="button" class="secundario">Cancelar</button>
+      <button id="confirmar-ok" type="button" class="primario">Aceptar</button>
+    </div>
+  </dialog>
+
+  <!-- Nuevo período -->
+  <dialog id="dlg-periodo">
+    <form id="form-periodo" method="dialog">
+      <h3>Nuevo período</h3>
+      <label class="campo">Nombre <input id="per-nombre" maxlength="30" required></label>
+      <label class="campo">Desde <input id="per-desde" type="date" required></label>
+      <label class="campo">Hasta <input id="per-hasta" type="date" required></label>
+      <p id="per-error" class="error" hidden></p>
+      <div class="dlg-acciones">
+        <button id="per-cancelar" type="button" class="secundario">Cancelar</button>
+        <button type="submit" class="primario">Crear</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Vista previa de la importación -->
+  <dialog id="dlg-importar">
+    <h3>Importar desde Excel</h3>
+    <div id="importar-resumen"></div>
+    <div class="dlg-acciones">
+      <button id="importar-cancelar" type="button" class="secundario">Cancelar</button>
+      <button id="importar-ok" type="button" class="primario">Importar</button>
+    </div>
+  </dialog>
+
+  <div id="avisos" class="avisos" aria-live="polite"></div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
